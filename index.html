@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>RK Granites</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f8f9fa;
+      margin: 0; padding: 0;
+    }
+    .container { max-width: 1000px; margin: auto; padding: 20px; }
+
+    /* Header */
+    .header {
+      display: flex; justify-content: center; align-items: center;
+      margin-bottom: 20px;
+    }
+    .title { font-size: 24px; font-weight: bold; }
+
+    /* History 3 dots - Bottom Left */
+    .history-menu {
+      position: fixed; bottom: 20px; left: 20px;
+    }
+    .dots { cursor: pointer; font-size: 28px; background: #fff; border-radius: 50%; padding: 5px 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+    .history-list {
+      display: none; position: absolute; bottom: 40px; left: 0;
+      background: white; border: 1px solid #ccc; width: 200px;
+      max-height: 200px; overflow-y: auto;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    .history-list div {
+      padding: 8px; border-bottom: 1px solid #eee; cursor: pointer;
+    }
+    .history-list div:hover { background: #f1f1f1; }
+
+    /* Buttons */
+    .buttons {
+      display: flex; gap: 10px; margin-bottom: 10px; justify-content: center;
+    }
+    .btn {
+      padding: 6px 12px; font-size: 14px; border: none; border-radius: 4px;
+      cursor: pointer; color: #fff;
+    }
+    .btn-save { background: #007bff; }
+    .btn-new { background: #28a745; }
+    .btn-add { background: #6c757d; }
+
+    /* Table with 1cm row height */
+    table { width: 100%; border-collapse: collapse; }
+    table th, table td {
+      border: 1px solid #ccc;
+      text-align: center;
+      height: 1cm;
+      padding: 4px;
+    }
+    table th { background: #e9ecef; }
+
+    /* Remove spin buttons */
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type=number] {
+      -moz-appearance: textfield;
+    }
+    input[type=number] {
+      width: 70px;
+      padding: 4px;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .final-total {
+      font-size: 24px;
+      font-weight: bold;
+      text-align: right;
+      margin-top: 10px;
+    }
+
+    /* Login */
+    #loginSection {
+      text-align: center; margin-top: 100px;
+    }
+    #loginSection input {
+      padding: 8px; width: 200px; font-size: 16px; margin: 5px;
+    }
+    #loginSection button {
+      padding: 8px 16px; background: #28a745; color: #fff;
+      border: none; border-radius: 4px; cursor: pointer;
+    }
+
+    /* Logout button */
+    .logout {
+      position: absolute; right: 20px; top: 20px;
+      font-size: 20px; background: red; color: #fff;
+      border-radius: 50%; padding: 5px 10px; cursor: pointer;
+    }
+
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- LOGIN SECTION -->
+  <div id="loginSection">
+    <h2>Enter Security Code</h2>
+    <input type="password" id="securityCode" placeholder="Enter Code">
+    <button onclick="checkCode()">Login</button>
+    <p id="loginMsg" style="color:red;"></p>
+  </div>
+
+  <!-- CALCULATOR SECTION -->
+  <div id="calcSection" class="hidden">
+    <div class="logout" onclick="logout()">X</div>
+
+    <!-- Header Title -->
+    <div class="header">
+      <div class="title">RK Granites</div>
+    </div>
+
+    <!-- Buttons -->
+    <div class="buttons">
+      <button class="btn btn-save" onclick="saveData()">Save</button>
+      <button class="btn btn-new" onclick="startNewData()">New</button>
+    </div>
+
+    <!-- Table -->
+    <div id="tableContainer"></div>
+
+    <!-- Add More Button -->
+    <div style="text-align:center; margin-top:10px;">
+      <button class="btn btn-add" onclick="addRows()">+ Add More</button>
+    </div>
+
+    <!-- Final Total -->
+    <div class="final-total">Final Total: <span id="finalTotal">0</span></div>
+  </div>
+</div>
+
+<!-- History 3-dot bottom-left -->
+<div class="history-menu">
+  <span class="dots" onclick="toggleHistory()">⋮</span>
+  <div class="history-list" id="historyList"></div>
+</div>
+
+<script>
+  /* SECURITY CODES AND SESSION */
+  const codes = { "0909": "member1", "0808": "member2", "0707": "member3", "0606": "member4" };
+  let currentMember = null;
+  const sessionKey = "rkSession";
+  const dataKeyPrefix = "rkData_";
+  const historyKeyPrefix = "rkHistory_";
+  const dataExpiry = 15 * 60 * 60 * 1000; // 15 hours
+
+  // Check saved data expiry on load
+  window.onload = () => {
+    const session = JSON.parse(localStorage.getItem(sessionKey));
+    if (session) {
+      currentMember = session.member;
+    }
+
+    Object.keys(codes).forEach(code => {
+      const memberKey = codes[code];
+      const dataKey = dataKeyPrefix + memberKey;
+      const saved = localStorage.getItem(dataKey);
+      if (saved) {
+        const obj = JSON.parse(saved);
+        if (Date.now() - obj.timestamp > dataExpiry) {
+          localStorage.removeItem(dataKey);
+          localStorage.removeItem(historyKeyPrefix + memberKey);
+        }
+      }
+    });
+
+    if (currentMember) showCalcSection();
+  };
+
+  /* LOGIN */
+  function checkCode() {
+    const entered = document.getElementById('securityCode').value;
+    if (codes[entered]) {
+      currentMember = codes[entered];
+      localStorage.setItem(sessionKey, JSON.stringify({ member: currentMember }));
+      showCalcSection();
+    } else {
+      document.getElementById('loginMsg').innerText = "Invalid code!";
+    }
+  }
+
+  function showCalcSection() {
+    document.getElementById('loginSection').classList.add('hidden');
+    document.getElementById('calcSection').classList.remove('hidden');
+
+    const saved = localStorage.getItem(dataKeyPrefix + currentMember);
+    if (saved) {
+      const obj = JSON.parse(saved);
+      buildTable(obj.rows);
+    } else {
+      buildTable(20);
+    }
+    loadData();
+    loadHistory();
+    calculateTotal();
+  }
+
+  function logout() {
+    localStorage.removeItem(sessionKey);
+    location.reload();
+  }
+
+  /* TABLE BUILDING */
+  let rowCount = 20;
+  function buildTable(rows) {
+    rowCount = rows;
+    let html = "<table><tr><th>S.No</th><th>Length</th><th>Breadth</th><th>Result</th></tr>";
+    for (let i = 1; i <= rows; i++) {
+      html += `<tr>
+        <td>${i}</td>
+        <td><input type="number" id="l${i}" oninput="calculateTotal()"></td>
+        <td><input type="number" id="b${i}" oninput="calculateTotal()"></td>
+        <td id="r${i}">0</td>
+      </tr>`;
+    }
+    html += "</table>";
+    document.getElementById('tableContainer').innerHTML = html;
+  }
+
+  /* ADD MORE ROWS - FIXED */
+  function addRows() {
+    const newCount = rowCount + 5;
+    const table = document.querySelector("#tableContainer table");
+
+    for (let i = rowCount + 1; i <= newCount; i++) {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${i}</td>
+        <td><input type="number" id="l${i}" oninput="calculateTotal()"></td>
+        <td><input type="number" id="b${i}" oninput="calculateTotal()"></td>
+        <td id="r${i}">0</td>
+      `;
+      table.appendChild(row);
+    }
+
+    rowCount = newCount;
+  }
+
+  /* CALCULATE AND SAVE */
+  function calculateTotal() {
+    let total = 0;
+    const data = [];
+    for (let i = 1; i <= rowCount; i++) {
+      const l = parseFloat(document.getElementById(`l${i}`)?.value) || 0;
+      const b = parseFloat(document.getElementById(`b${i}`)?.value) || 0;
+      const result = (l * b) / 144;
+      document.getElementById(`r${i}`).innerText = result ? result.toFixed(2) : 0;
+      total += result;
+      data.push({ length: l, breadth: b });
+    }
+    document.getElementById('finalTotal').innerText = total.toFixed(2);
+
+    localStorage.setItem(dataKeyPrefix + currentMember, JSON.stringify({ rows: rowCount, data, timestamp: Date.now() }));
+  }
+
+  function loadData() {
+    const saved = localStorage.getItem(dataKeyPrefix + currentMember);
+    if (saved) {
+      const obj = JSON.parse(saved);
+      if (obj.rows > 20) buildTable(obj.rows);
+      obj.data.forEach((row, i) => {
+        document.getElementById(`l${i+1}`).value = row.length || '';
+        document.getElementById(`b${i+1}`).value = row.breadth || '';
+      });
+    }
+  }
+
+  /* SAVE DATASET */
+  function saveData() {
+    const historyKey = historyKeyPrefix + currentMember;
+    const history = JSON.parse(localStorage.getItem(historyKey)) || [];
+    const timestamp = new Date();
+    const dateStr = timestamp.toLocaleDateString('en-GB');
+    const savedData = localStorage.getItem(dataKeyPrefix + currentMember);
+    history.push({ date: dateStr, data: savedData });
+    localStorage.setItem(historyKey, JSON.stringify(history));
+    loadHistory();
+    alert("Data saved on " + dateStr);
+  }
+
+  /* NEW DATASET */
+  function startNewData() {
+    saveData();
+    localStorage.removeItem(dataKeyPrefix + currentMember);
+    buildTable(20);
+    calculateTotal();
+  }
+
+  /* HISTORY HANDLING */
+  function toggleHistory() {
+    const list = document.getElementById('historyList');
+    list.style.display = list.style.display === 'block' ? 'none' : 'block';
+  }
+
+  function loadHistory() {
+    const history = JSON.parse(localStorage.getItem(historyKeyPrefix + currentMember)) || [];
+    const list = document.getElementById('historyList');
+    list.innerHTML = history.map((item, idx) =>
+      `<div onclick="viewHistory(${idx})">${item.date}</div>`
+    ).join('');
+  }
+
+  function viewHistory(index) {
+    const history = JSON.parse(localStorage.getItem(historyKeyPrefix + currentMember)) || [];
+    if (history[index]) {
+      const obj = JSON.parse(history[index].data);
+      buildTable(obj.rows);
+      obj.data.forEach((row, i) => {
+        document.getElementById(`l${i+1}`).value = row.length || '';
+        document.getElementById(`b${i+1}`).value = row.breadth || '';
+      });
+      calculateTotal();
+      for (let i = 1; i <= rowCount; i++) {
+        document.getElementById(`l${i}`).disabled = true;
+        document.getElementById(`b${i}`).disabled = true;
+      }
+    }
+    toggleHistory();
+  }
+</script>
+
+</body>
+</html>
